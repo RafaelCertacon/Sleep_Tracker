@@ -1,36 +1,32 @@
 from flask import Flask, make_response, jsonify, request
-from infra.db_connection import session, SleepTracker
+from infra.db_connection import db, session, SleepTracker
 
-app = Flask(__name__)
-
+app = Flask("__name__")
 
 @app.route('/dormir', methods=['POST'])
 def post_dormir():
-    sleep_data = request.json
-    sleep_instance = SleepTracker(**sleep_data)
-    session.add(sleep_instance)
+    dados = request.get_json()
+    # O operador ** em SleepTracker(**dados) é chamado de desempacotamento de dicionário.
+    # Ele pega um dicionário e transforma suas chaves em argumentos nomeados para o construtor da classe.
+    sleep = SleepTracker(**dados)
+    session.add(sleep)
     session.commit()
-
-    return make_response(jsonify({'message': 'Sleep record created'}), 201)
-
+    return sleep.serialize()
 
 @app.route('/resultados', methods=['GET'])
 def get_sleep():
-    sleep_records = session.query(SleepTracker).all()
-    return make_response(
-        jsonify([record.serialize() for record in sleep_records])
-    )
-
+    all_resultados = session.query(SleepTracker).all()
+    return [resultado.serialize()
+            for resultado in all_resultados]
 
 @app.route('/apagar_tempo/<int:id>', methods=['DELETE'])
 def delete_tempo(id):
-    record = session.query(SleepTracker).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-        return make_response(jsonify({'message': 'Record deleted'}), 200)
-    return make_response(jsonify({'message': 'Record not found'}), 404)
+    delete_linha = session.query(SleepTracker).get(id)
+    session.delete(delete_linha)
+    session.commit()
+    return jsonify({
+        'mensagem': 'Registro deletado com sucesso',
+        'id_deletado': id
+    }), 200
 
-
-if __name__ == '__main__':
-    app.run(debug=True)
+app.run()
