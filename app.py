@@ -34,6 +34,13 @@ login_model = api.model('Login', {
     'password': fields.String(required=True, description='Senha')
 })
 
+post_dormir = api.model('Metodo POST para dormir', {
+    'dia_dormir': fields.String(required=True, description='Dia em que estou indo dormir'),
+    'dia_acordar': fields.String(required=True, description='Dia em que eu vou acordar'),
+    'hora_dormir': fields.String(required=True, description='Hora em que eu vou dormir'),
+    'hora_acordar': fields.String(required=True, description='Hora em que eu vou acordar'),
+})
+
 @ns.route('/login')
 class Login(Resource):
     @api.expect(login_model)
@@ -54,13 +61,8 @@ class Login(Resource):
 @ns.route('/dormir')
 class Dormir(Resource):
     def post(self):
-        parser = request.get_json()
-        dia_dormir = parser.get('dia_dormir')
-        dia_acordar = parser.get('dia_acordar')
-        hora_dormir = parser.get('hora_dormir')
-        hora_acordar = parser.get('hora_acordar')
-
-        sleep = SleepTracker(**parser)
+        dados = request.get_json()
+        sleep = SleepTracker(**dados)
         session.add(sleep)
         session.commit()
         return sleep.serialize()
