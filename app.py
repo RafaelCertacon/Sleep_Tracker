@@ -1,10 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import werkzeug
 import jwt
-from authentication.authenticate import token_required
+import os
+
+from werkzeug.datastructures import FileStorage
+from werkzeug.utils import secure_filename
 
 werkzeug.cached_property = werkzeug.utils.cached_property
-from flask_restx import Api, Resource, fields, reqparse
+from flask_restx import Api, Resource, fields
 from infra.db_connection import session, SleepTracker
 
 app = Flask(__name__)
@@ -40,6 +43,12 @@ post_dormir = api.model('Metodo POST para dormir', {
     'hora_dormir': fields.String(required=True, description='Hora em que eu vou dormir'),
     'hora_acordar': fields.String(required=True, description='Hora em que eu vou acordar'),
 })
+
+upload_parser = api.parser()
+upload_parser.add_argument('file', location='files',
+                           type=FileStorage, required=True)
+
+diretorio = r'C:\PROJETOS\SleepTracker_API-main\Arquivos_Salvos'
 
 @ns.route('/login')
 class Login(Resource):
@@ -86,3 +95,40 @@ class ApagarTempo(Resource):
             'mensagem': 'Registro deletado com sucesso',
             'id_deletado': id
         }, 200
+
+
+@ns.route('/arquivos')
+class Arquivos(Resource):
+    def get(self):
+        arquivos = []
+
+        for arquivo in os.listdir(diretorio):
+            endereco_arquivo = os.path.join(diretorio, arquivo)
+
+            if os.path.isfile(endereco_arquivo):
+                arquivos.append(arquivo)
+
+        return arquivos, 200
+
+@ns.route('/arquivos/<arquivo>')
+class NomeArquivo(Resource):
+    def get(self, arquivo):
+        return send_from_directory(diretorio, arquivo, as_attachment=True)
+
+
+@ns.route('/upload_arquivo')
+@api.expect(upload_parser)
+class UploadArquivo(Resource):
+    def post(self):
+        if 'meu arquivo' not in request.files:
+            return {'error': 'Nenhum arquivo enviado'}, 400
+
+        arquivo = request.files['meu arquivo']
+
+        if arquivo.filename == '':
+            return {'error': 'Nenhum arquivo selecionado'}, 400
+
+        nome_arquivo = secure_filename(arquivo.filename)
+        arquivo.save(os.path.join(diretorio, nome_arquivo))
+
+        return {'message': 'Arquivo enviado com sucesso'}, 200
