@@ -5,11 +5,10 @@ import os
 
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
-
 werkzeug.cached_property = werkzeug.utils.cached_property
 from flask_restx import Api, Resource, fields
 from infra.db_connection import session, SleepTracker
-
+from authentication.authenticate import token_required
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'e56c7ee3ac3f3e4c4bfd9be6'
 authorizations = {
@@ -67,8 +66,11 @@ class Login(Resource):
             return {'token': token}, 200
         return {'message': 'Credenciais inválidas'}, 401
 
+
 @ns.route('/dormir')
 class Dormir(Resource):
+    @api.expect(post_dormir)
+    @token_required
     def post(self):
         dados = request.get_json()
         sleep = SleepTracker(**dados)
@@ -79,6 +81,7 @@ class Dormir(Resource):
 @ns.route('/resultados')
 class Resultados(Resource):
     @api.doc(authorizations=authorizations, responses={200: 'Lista de registros recuperada com sucesso'})
+    @token_required
     def get(self):
         all_resultados = session.query(SleepTracker).all()
         return [resultado.serialize() for resultado in all_resultados]
@@ -87,6 +90,7 @@ class Resultados(Resource):
 class ApagarTempo(Resource):
     @api.doc(authorizations=authorizations, params={'id': 'ID do registro a ser deletado'},
              responses={200: 'Registro deletado com sucesso'})
+    @token_required
     def delete(self, id):
         delete_linha = session.query(SleepTracker).get(id)
         session.delete(delete_linha)
@@ -99,6 +103,7 @@ class ApagarTempo(Resource):
 
 @ns.route('/arquivos')
 class Arquivos(Resource):
+    @token_required
     def get(self):
         arquivos = []
 
@@ -112,6 +117,7 @@ class Arquivos(Resource):
 
 @ns.route('/arquivos/<arquivo>')
 class NomeArquivo(Resource):
+    @token_required
     def get(self, arquivo):
         return send_from_directory(diretorio, arquivo, as_attachment=True)
 
@@ -119,16 +125,14 @@ class NomeArquivo(Resource):
 @ns.route('/upload_arquivo')
 @api.expect(upload_parser)
 class UploadArquivo(Resource):
+    @token_required
     def post(self):
-        if 'meu arquivo' not in request.files:
-            return {'error': 'Nenhum arquivo enviado'}, 400
 
-        arquivo = request.files['meu arquivo']
+      arquivo = request.files.get('file')
+      print(arquivo)
 
-        if arquivo.filename == '':
-            return {'error': 'Nenhum arquivo selecionado'}, 400
+      nome_arquivo = arquivo.filename
+      arquivo.save(os.path.join(diretorio, nome_arquivo))
 
-        nome_arquivo = secure_filename(arquivo.filename)
-        arquivo.save(os.path.join(diretorio, nome_arquivo))
+      return "Deu certo", 200
 
-        return {'message': 'Arquivo enviado com sucesso'}, 200
